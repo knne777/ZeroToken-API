@@ -301,10 +301,10 @@ console.log(turn2.response);
 * `claude-3-opus`
 
 ### ⚡ OpenAI Codex CLI (`codex`)
-* `gpt-4o`
-* `gpt-4o-mini`
-* `o1`
-* `o3-mini`
+* `gpt-6-luna` *(Recomendado por OpenAI para ChatGPT Plus/Pro)*
+* `gpt-5.6-luna`
+* `gpt-5.6-terra`
+* `gpt-reserve` *(o déjalo en blanco para el modelo por defecto)*
 
 ---
 
