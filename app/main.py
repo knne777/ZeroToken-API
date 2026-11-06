@@ -6,7 +6,7 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.analytics.routes import router as analytics_router
@@ -68,7 +68,14 @@ app.include_router(analytics_router)
 # Mount React Frontend Studio if built
 frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 if frontend_dist.is_dir():
+    assets_dir = frontend_dist / "assets"
+    if assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
     app.mount("/studio", StaticFiles(directory=str(frontend_dist), html=True), name="studio")
+
+    @app.get("/dashboard", include_in_schema=False)
+    async def dashboard_redirect():
+        return RedirectResponse(url="/studio/")
 
 
 @app.get("/", tags=["Info"])
