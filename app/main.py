@@ -109,5 +109,6 @@ async def chat(request: ChatRequest):
         conversation_id=request.conversation_id,
         model=request.model,
         effort=request.effort,
+        attachments=request.attachments,
         timeout=settings.default_timeout_seconds,
     )

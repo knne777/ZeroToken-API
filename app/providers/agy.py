@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import os
@@ -15,7 +16,7 @@ from app.core.exceptions import (
     ProviderExecutionError,
     ProviderUnavailableError,
 )
-from app.models.schemas import ChatResponse, ProviderStatus, TokenUsage
+from app.models.schemas import ChatResponse, FileAttachment, ProviderStatus, TokenUsage
 from app.providers.base import BaseProvider
 
 logger = logging.getLogger("zerotoken.providers.agy")
@@ -130,6 +131,7 @@ class AgyProvider(BaseProvider):
         conversation_id: str | None = None,
         model: str | None = None,
         effort: str | None = None,
+        attachments: list[FileAttachment] | None = None,
         timeout: float = 300.0,
     ) -> ChatResponse:
         exe = self.find_executable()
@@ -150,39 +152,58 @@ class AgyProvider(BaseProvider):
             if not conv_db.exists() and not conv_brain.exists():
                 raise ConversationNotFoundError(conversation_id)
 
-        # Enforce pure conversational mode so the agent does not attempt
-        # to execute shell commands or scan local filesystem transcripts
-        chat_instruction = (
-            "Instrucción de sistema: Eres un asistente conversacional de chat. "
-            "Responde directamente con texto al usuario en lenguaje natural. "
-            "No uses herramientas, no ejecutes comandos y no leas archivos o transcripciones del sistema. "
-            "Limítate única y estrictamente al contexto explícito de esta conversación específica."
+        # Enforce sandbox rules that prevent host shell tool execution and transcript snooping
+        # while permitting structured JSON, tables, code, or custom schemas requested in system_prompt
+        sandbox_instruction = (
+            "Seguridad y Sandbox: Tienes estrictamente prohibido ejecutar comandos de terminal (bash/shell), "
+            "invocar herramientas del sistema operativo local o acceder a archivos y transcripciones fuera de este directorio de trabajo. "
+            "Responde directamente como texto hacia el usuario cumpliendo fielmente el formato, esquema "
+            "(JSON estructurado, texto plano, tablas, etc.) o instrucciones de rol solicitadas en el prompt."
         )
 
-        effective_prompt = (
-            f"[{chat_instruction}]\n\n{prompt}" if not conversation_id else prompt
-        )
-
-        cmd = [
-            exe,
-            "-p",
-            effective_prompt,
-            "--output-format",
-            "json",
-            "--disable-slash-commands",
-            "--mode",
-            "plan",
-        ]
-        if conversation_id:
-            cmd.extend(["--conversation", conversation_id])
-        if model:
-            cmd.extend(["--model", model])
-        if effort:
-            cmd.extend(["--effort", effort])
+        effective_effort = effort or "low"
 
         with tempfile.TemporaryDirectory(prefix="zerotoken-agy-") as cwd:
             env = dict(os.environ)
             env["PWD"] = cwd
+
+            attached_files_info: list[str] = []
+            if attachments:
+                for att in attachments:
+                    safe_name = os.path.basename(att.name)
+                    dest_path = os.path.join(cwd, safe_name)
+                    try:
+                        content_bytes = base64.b64decode(att.content_base64)
+                        with open(dest_path, "wb") as f:
+                            f.write(content_bytes)
+                        attached_files_info.append(safe_name)
+                    except Exception as err:
+                        logger.warning(f"Failed to decode attachment '{att.name}': {err}")
+
+            effective_prompt = prompt
+            if attached_files_info:
+                files_notice = f"[Archivos adjuntos disponibles en el espacio de trabajo: {', '.join(attached_files_info)}]"
+                effective_prompt = f"{files_notice}\n\n{effective_prompt}"
+
+            if not conversation_id:
+                effective_prompt = f"[{sandbox_instruction}]\n\n{effective_prompt}"
+
+            cmd = [
+                exe,
+                "-p",
+                effective_prompt,
+                "--output-format",
+                "json",
+                "--disable-slash-commands",
+                "--mode",
+                "plan",
+                "--effort",
+                effective_effort,
+            ]
+            if conversation_id:
+                cmd.extend(["--conversation", conversation_id])
+            if model:
+                cmd.extend(["--model", model])
 
             try:
                 proc = await asyncio.create_subprocess_exec(

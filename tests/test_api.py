@@ -101,3 +101,44 @@ def test_chat_nonexistent_conversation():
     data = res.json()
     assert data["error"] == "ConversationNotFoundError"
     assert "not found" in data["message"]
+
+
+def test_chat_with_attachments_schema():
+    mock_resp = ChatResponse(
+        provider="agy",
+        model="default",
+        conversation_id="conv-att-123",
+        response='{"result": "parsed"}',
+        status="SUCCESS",
+        num_turns=1,
+        duration_seconds=1.0,
+        usage=TokenUsage(input_tokens=100, output_tokens=20, total_tokens=120),
+    )
+
+    with patch(
+        "app.providers.agy.AgyProvider.run",
+        new_callable=AsyncMock,
+        return_value=mock_resp,
+    ) as mock_run:
+        res = client.post(
+            "/api/v1/chat",
+            json={
+                "message": "Procesa archivo",
+                "provider": "agy",
+                "effort": "low",
+                "system_prompt": "Responde en JSON",
+                "attachments": [
+                    {
+                        "name": "test.txt",
+                        "content_base64": "SGVsbG8gV29ybGQ=",
+                    }
+                ],
+            },
+        )
+        assert res.status_code == 200
+        assert res.json()["response"] == '{"result": "parsed"}'
+        assert mock_run.called
+        kwargs = mock_run.call_args.kwargs
+        assert kwargs["effort"] == "low"
+        assert len(kwargs["attachments"]) == 1
+        assert kwargs["attachments"][0].name == "test.txt"

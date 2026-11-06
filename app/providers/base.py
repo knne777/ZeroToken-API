@@ -1,7 +1,7 @@
 """Base abstract provider definition for ZeroToken API."""
 
 from abc import ABC, abstractmethod
-from app.models.schemas import ChatResponse, ProviderStatus
+from app.models.schemas import ChatResponse, FileAttachment, ProviderStatus
 
 
 class BaseProvider(ABC):
@@ -22,6 +22,7 @@ class BaseProvider(ABC):
         conversation_id: str | None = None,
         model: str | None = None,
         effort: str | None = None,
+        attachments: list[FileAttachment] | None = None,
         timeout: float = 300.0,
     ) -> ChatResponse:
         """Run a single or multi-turn prompt and return structured ChatResponse."""

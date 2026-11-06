@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import os
@@ -15,7 +16,7 @@ from app.core.exceptions import (
     ProviderExecutionError,
     ProviderUnavailableError,
 )
-from app.models.schemas import ChatResponse, ProviderStatus, TokenUsage
+from app.models.schemas import ChatResponse, FileAttachment, ProviderStatus, TokenUsage
 from app.providers.base import BaseProvider
 
 logger = logging.getLogger("zerotoken.providers.codex")
@@ -109,6 +110,7 @@ class CodexProvider(BaseProvider):
         conversation_id: str | None = None,
         model: str | None = None,
         effort: str | None = None,
+        attachments: list[FileAttachment] | None = None,
         timeout: float = 300.0,
     ) -> ChatResponse:
         exe = self.find_executable()
@@ -117,41 +119,60 @@ class CodexProvider(BaseProvider):
 
         t0 = time.perf_counter()
 
-        # Build command line arguments
-        if conversation_id:
-            # Resuming an existing thread
-            cmd = [
-                exe,
-                "exec",
-                "resume",
-                "--skip-git-repo-check",
-                "--json",
-            ]
-            if model:
-                cmd.extend(["-m", model])
-            if effort:
-                cmd.extend(["-c", f'model_reasoning_effort="{effort}"'])
-            cmd.append(conversation_id)
-            cmd.append(prompt)
-        else:
-            # Starting a new thread in read-only sandbox
-            cmd = [
-                exe,
-                "exec",
-                "--sandbox",
-                "read-only",
-                "--skip-git-repo-check",
-                "--json",
-            ]
-            if model:
-                cmd.extend(["-m", model])
-            if effort:
-                cmd.extend(["-c", f'model_reasoning_effort="{effort}"'])
-            cmd.append(prompt)
-
         with tempfile.TemporaryDirectory(prefix="zerotoken-codex-") as cwd:
             env = dict(os.environ)
             env["PWD"] = cwd
+
+            attached_files_info: list[str] = []
+            if attachments:
+                for att in attachments:
+                    safe_name = os.path.basename(att.name)
+                    dest_path = os.path.join(cwd, safe_name)
+                    try:
+                        content_bytes = base64.b64decode(att.content_base64)
+                        with open(dest_path, "wb") as f:
+                            f.write(content_bytes)
+                        attached_files_info.append(safe_name)
+                    except Exception as err:
+                        logger.warning(f"Failed to decode attachment '{att.name}': {err}")
+
+            effective_prompt = prompt
+            if attached_files_info:
+                effective_prompt = (
+                    f"[Archivos adjuntos en workspace: {', '.join(attached_files_info)}]\n\n{effective_prompt}"
+                )
+
+            # Build command line arguments
+            if conversation_id:
+                # Resuming an existing thread
+                cmd = [
+                    exe,
+                    "exec",
+                    "resume",
+                    "--skip-git-repo-check",
+                    "--json",
+                ]
+                if model:
+                    cmd.extend(["-m", model])
+                if effort:
+                    cmd.extend(["-c", f'model_reasoning_effort="{effort}"'])
+                cmd.append(conversation_id)
+                cmd.append(effective_prompt)
+            else:
+                # Starting a new thread in read-only sandbox
+                cmd = [
+                    exe,
+                    "exec",
+                    "--sandbox",
+                    "read-only",
+                    "--skip-git-repo-check",
+                    "--json",
+                ]
+                if model:
+                    cmd.extend(["-m", model])
+                if effort:
+                    cmd.extend(["-c", f'model_reasoning_effort="{effort}"'])
+                cmd.append(effective_prompt)
 
             try:
                 proc = await asyncio.create_subprocess_exec(

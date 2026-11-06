@@ -12,6 +12,12 @@ class TokenUsage(BaseModel):
     total_tokens: int = 0
 
 
+class FileAttachment(BaseModel):
+    name: str = Field(..., description="File name including extension, e.g. 'invoice.pdf', 'receipt.png', 'data.json'")
+    content_base64: str = Field(..., description="Base64 encoded content of the file")
+    mime_type: str | None = Field(None, description="Optional MIME type, e.g. 'image/png', 'application/pdf'")
+
+
 class ChatRequest(BaseModel):
     message: str = Field(..., description="Message/prompt to send to the AI agent.")
     provider: str | None = Field(
@@ -21,13 +27,16 @@ class ChatRequest(BaseModel):
         None, description="UUID of existing conversation to continue multi-turn chat. Leave empty to start a new chat."
     )
     model: str | None = Field(
-        None, description="Model identifier (e.g. 'gemini-3.8-flash-high', 'claude-3-5-sonnet', 'gpt-5.5')."
+        None, description="Model identifier (e.g. 'gemini-3.8-flash-high', 'claude-3-5-sonnet', 'gpt-6-luna')."
     )
     effort: str | None = Field(
-        None, description="Reasoning effort level (e.g. 'low', 'medium', 'high', 'xhigh', 'max')."
+        "low", description="Reasoning effort level (e.g. 'low', 'medium', 'high', 'xhigh', 'max'). Defaults to 'low' for fast classification."
     )
     system_prompt: str | None = Field(
         None, description="Optional system instructions prefixed to the turn."
+    )
+    attachments: list[FileAttachment] | None = Field(
+        None, description="Optional temporary files or images attached as base64 to be placed in the turn's workspace."
     )
 
 

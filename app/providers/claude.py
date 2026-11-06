@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import os
@@ -10,7 +11,7 @@ import shutil
 import tempfile
 
 from app.core.exceptions import ProviderExecutionError, ProviderUnavailableError
-from app.models.schemas import ChatResponse, ProviderStatus, TokenUsage
+from app.models.schemas import ChatResponse, FileAttachment, ProviderStatus, TokenUsage
 from app.providers.base import BaseProvider
 
 logger = logging.getLogger("zerotoken.providers.claude")
@@ -64,6 +65,7 @@ class ClaudeProvider(BaseProvider):
         conversation_id: str | None = None,
         model: str | None = None,
         effort: str | None = None,
+        attachments: list[FileAttachment] | None = None,
         timeout: float = 300.0,
     ) -> ChatResponse:
         exe = self.find_executable()
@@ -93,6 +95,17 @@ class ClaudeProvider(BaseProvider):
             env = dict(os.environ)
             env["PWD"] = cwd
             env["CLAUDE_CODE_SAFE_MODE"] = "1"
+
+            if attachments:
+                for att in attachments:
+                    safe_name = os.path.basename(att.name)
+                    dest_path = os.path.join(cwd, safe_name)
+                    try:
+                        content_bytes = base64.b64decode(att.content_base64)
+                        with open(dest_path, "wb") as f:
+                            f.write(content_bytes)
+                    except Exception as err:
+                        logger.warning(f"Failed to decode attachment '{att.name}': {err}")
 
             try:
                 proc = await asyncio.create_subprocess_exec(
