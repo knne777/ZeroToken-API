@@ -72,12 +72,13 @@ flowchart TD
 ## ✨ Características Principales
 
 * 💸 **Facturación Cero por Token ($0):** Aprovecha el 100% del cupo mensual de tus planes Pro/Team sin tarjetas de crédito asociadas a facturación por consumo.
-* 🔄 **Multi-Proveedor Unificado:** Cambia dinámicamente entre Gemini, Claude y GPT en el mismo payload enviando `"provider": "agy" | "claude" | "codex"`.
+* 🖥️ **ZeroToken Studio (Interfaz Ejecutiva en React):** Dashboard minimalista en `http://localhost:8000/studio` con contador de ROI en vivo (*The Money Counter*), telemetría y gestor visual.
+* 🔐 **One-Click CLI Auth Engine:** Inicia sesión en tus CLIs locales directamente desde la web mediante Device Code Flow de OpenAI (`auth.openai.com/codex/device`), Google OAuth o auto-detección.
+* 🔑 **Virtual API Keys (`ztk_live_...`):** Genera llaves virtuales con hash SHA-256, límites de peticiones por minuto (RPM) y alcances personalizados para tus aplicaciones (Conta360, bots, scripts).
+* 🔄 **Proxy Compatible con OpenAI (`/v1/chat/completions`):** Sustitución inmediata para cualquier librería oficial de OpenAI (`base_url="http://localhost:8000/v1"`).
 * 🧠 **Memoria Multi-Turno Automática:** Gestiona hilos de conversación usando `conversation_id`. ZeroToken API mantiene el hilo temporal en el CLI correspondiente.
 * 🛡️ **Aislamiento Seguro de Sesiones:** Validación rigurosa de alcance (`404 ConversationNotFoundError` ante UUIDs inválidos) y sandbox conversacional que previene la ejecución indebida de comandos de sistema o lectura cruzada de discos.
-* 📊 **Métricas de Uso Detalladas:** Normaliza `input_tokens`, `output_tokens`, `thinking_tokens` y `duration_seconds` en cada respuesta.
-* 🖥️ **Cliente de Terminal Interactivo:** Incluye `client.py` con comandos estilo chat interactivo (`/new`, `/provider`, `/id`).
-* 📖 **Documentación Swagger / OpenAPI Integrada:** Prueba endpoints interactivamente desde `http://localhost:8000/docs`.
+* 📊 **Métricas de Uso y Ahorro:** Normaliza `input_tokens`, `output_tokens`, `duration_seconds` y el dinero ahorrado frente a tarifas oficiales de nube en cada respuesta.
 
 ---
 
@@ -204,7 +205,48 @@ curl -s -X POST 'http://localhost:8000/api/v1/chat' \
 
 ---
 
-### 3. Integración en Python
+### 3. Uso con el SDK Oficial de OpenAI (Python) 🐍
+
+ZeroToken implementa un proxy compatible con la API de OpenAI en `/v1/chat/completions`. Solo apunta tu cliente existente:
+
+```python
+from openai import OpenAI
+
+# Inicializa con tu ZeroToken API Key o en local
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="ztk_live_65b2e32216e70967f0335d59...",  # O cualquier string en modo local
+)
+
+response = client.chat.completions.create(
+    model="gemini-3.8-flash-high",  # O "gpt-6-luna", "claude-3-7-sonnet"
+    messages=[
+        {"role": "system", "content": "Eres un asistente fiscal de Conta360."},
+        {"role": "user", "content": "¿Cuál es el plazo para timbrar un CFDI 4.0?"}
+    ],
+    temperature=0.2,
+)
+
+print(response.choices[0].message.content)
+print(f"Tokens consumidos (a costo $0): {response.usage.total_tokens}")
+```
+
+---
+
+### 4. ZeroToken Studio (Dashboard Ejecutivo en React) 🖥️
+
+Accede al estudio visual completo en tu navegador:  
+👉 **[http://localhost:8000/studio](http://localhost:8000/studio)**
+
+* **The Money Counter:** Rastreador de ROI en tiempo real que calcula cuántos dólares ahorraste frente a facturación por token de OpenAI o Google Cloud.
+* **1-Click CLI Login Hub:** Modal interactivo para conectar tu cuenta de ChatGPT mediante Device Code (`auth.openai.com/codex/device`) sin tocar la terminal.
+* **Gestor de Virtual API Keys:** Crea llaves con prefijo `ztk_live_...` y límites RPM para tus servicios.
+* **Playground Multi-Modelo:** Prueba prompts con subida de adjuntos (facturas, imágenes, PDFs) y modo JSON en vivo.
+* **Telemetría & Auditoría:** Registro continuo de todas las solicitudes con latencia, tokens y estatus.
+
+---
+
+### 5. Integración en Python (REST Nativo)
 
 ```python
 import requests
@@ -264,11 +306,21 @@ console.log(turn2.response);
 
 | Método | Endpoint | Descripción |
 | :--- | :--- | :--- |
-| `POST` | `/api/v1/chat` | Enviar un mensaje de chat (inicio o continuación de conversación). |
+| `GET` | `/studio` | Dashboard visual en React (The Money Counter, Conexiones CLI, Playground, Keys). |
+| `POST` | `/v1/chat/completions` | Proxy compatible con el SDK oficial de OpenAI. |
+| `POST` | `/api/v1/chat` | Enviar un mensaje de chat nativo (soporta JSON, memoria, attachments). |
+| `GET` | `/api/v1/auth/status` | Diagnóstico de sesión y suscripciones de `agy`, `codex` y `claude`. |
+| `POST` | `/api/v1/auth/{provider}/start` | Inicia flujo de autenticación asistida (Device Auth para Codex, OAuth para agy). |
+| `POST` | `/api/v1/auth/{provider}/token` | Importación directa de archivos JSON de credenciales de sesión. |
+| `POST` | `/api/v1/auth/{provider}/logout` | Cierre de sesión seguro y eliminación de credenciales locales. |
+| `GET` | `/api/v1/keys` | Listado de Virtual API Keys creadas con sus métricas. |
+| `POST` | `/api/v1/keys` | Generar una nueva Virtual API Key (`ztk_live_...`). |
+| `DELETE` | `/api/v1/keys/{id}` | Revocar permanentemente una Virtual API Key. |
+| `GET` | `/api/v1/analytics/overview` | Resumen de ROI, tokens procesados y dólares ahorrados. |
+| `GET` | `/api/v1/analytics/logs` | Registro en vivo de las últimas llamadas para auditoría y telemetría. |
 | `GET` | `/api/v1/providers` | Lista el estado de instalación y rutas de los 3 proveedores (`agy`, `claude`, `codex`). |
 | `GET` | `/api/v1/models` | Lista los modelos disponibles por proveedor (`?provider=agy`). |
 | `GET` | `/health` | Chequeo de salud del servicio (healthcheck). |
-| `GET` | `/` | Información general de la API y enlaces a la documentación. |
 
 ---
 

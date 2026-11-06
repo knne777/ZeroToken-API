@@ -142,3 +142,81 @@ def test_chat_with_attachments_schema():
         assert kwargs["effort"] == "low"
         assert len(kwargs["attachments"]) == 1
         assert kwargs["attachments"][0].name == "test.txt"
+
+
+def test_auth_status():
+    res = client.get("/api/v1/auth/status")
+    assert res.status_code == 200
+    data = res.json()
+    assert "codex" in data
+    assert "agy" in data
+    assert "claude" in data
+
+
+def test_virtual_api_keys_crud():
+    # 1. Create key
+    res = client.post(
+        "/api/v1/keys",
+        json={"name": "Test App Key", "rate_limit_rpm": 120},
+    )
+    assert res.status_code == 201
+    key_data = res.json()
+    assert key_data["name"] == "Test App Key"
+    assert key_data["raw_key"].startswith("ztk_live_")
+    assert "..." in key_data["prefix"]
+    key_id = key_data["id"]
+    raw_key = key_data["raw_key"]
+
+    # 2. List keys
+    list_res = client.get("/api/v1/keys")
+    assert list_res.status_code == 200
+    keys = list_res.json()
+    assert any(k["id"] == key_id for k in keys)
+
+    # 3. Revoke key
+    del_res = client.delete(f"/api/v1/keys/{key_id}")
+    assert del_res.status_code == 200
+
+
+def test_openai_proxy_completion():
+    mock_resp = ChatResponse(
+        provider="agy",
+        model="gemini-3.8-flash-high",
+        conversation_id="conv-openai-999",
+        response="OpenAI compatible response text",
+        status="SUCCESS",
+        num_turns=1,
+        duration_seconds=0.8,
+        usage=TokenUsage(input_tokens=50, output_tokens=25, total_tokens=75),
+    )
+
+    with patch(
+        "app.providers.agy.AgyProvider.run",
+        new_callable=AsyncMock,
+        return_value=mock_resp,
+    ):
+        res = client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "gemini-3.8-flash-high",
+                "messages": [
+                    {"role": "system", "content": "You are a test bot."},
+                    {"role": "user", "content": "Hello via OpenAI endpoint"},
+                ],
+            },
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["object"] == "chat.completion"
+        assert len(data["choices"]) == 1
+        assert data["choices"][0]["message"]["content"] == "OpenAI compatible response text"
+        assert data["usage"]["total_tokens"] == 75
+
+
+def test_analytics_overview():
+    res = client.get("/api/v1/analytics/overview")
+    assert res.status_code == 200
+    data = res.json()
+    assert "total_requests" in data
+    assert "total_savings_usd" in data
+    assert "total_tokens" in data

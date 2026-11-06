@@ -197,13 +197,18 @@ class AgyProvider(BaseProvider):
                 "--disable-slash-commands",
                 "--mode",
                 "plan",
-                "--effort",
-                effective_effort,
             ]
             if conversation_id:
                 cmd.extend(["--conversation", conversation_id])
             if model:
                 cmd.extend(["--model", model])
+                # Only append --effort if the model name doesn't already encode an effort level
+                if effort and not any(f"-{lvl}" in model.lower() for lvl in ("low", "medium", "high", "xhigh", "max")):
+                    cmd.extend(["--effort", effort])
+            elif effort:
+                cmd.extend(["--effort", effort])
+            else:
+                cmd.extend(["--effort", "low"])
 
             try:
                 proc = await asyncio.create_subprocess_exec(
