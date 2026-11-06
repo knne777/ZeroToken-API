@@ -3,14 +3,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: zerotoken-platform
     restart: unless-stopped
+    expose:
+      - "8000"
     ports:
-      - "8000:8000"
+      # Change PORT_BIND if another service is already using 8000 on your VPS
+      - "${PORT_BIND:-8008}:8000"
     environment:
-      - ZEROTOKEN_ADMIN_USER=admin
-      - ZEROTOKEN_ADMIN_PASSWORD=zerotoken2026
-      - ZEROTOKEN_JWT_SECRET=super_secret_jwt_key_change_me
+      - ZEROTOKEN_ADMIN_USER=${ZEROTOKEN_ADMIN_USER:-admin}
+      - ZEROTOKEN_ADMIN_PASSWORD=${ZEROTOKEN_ADMIN_PASSWORD:-zerotoken2026}
+      - ZEROTOKEN_JWT_SECRET=${ZEROTOKEN_JWT_SECRET:-super_secret_jwt_key_change_me}
     volumes:
       # Persist SQLite database, virtual API keys, and telemetry
       - ./data:/app/data
