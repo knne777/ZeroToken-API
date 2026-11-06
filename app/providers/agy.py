@@ -10,7 +10,11 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from app.core.exceptions import ProviderExecutionError, ProviderUnavailableError
+from app.core.exceptions import (
+    ConversationNotFoundError,
+    ProviderExecutionError,
+    ProviderUnavailableError,
+)
 from app.models.schemas import ChatResponse, ProviderStatus, TokenUsage
 from app.providers.base import BaseProvider
 
@@ -132,10 +136,37 @@ class AgyProvider(BaseProvider):
         if not exe:
             raise ProviderUnavailableError(self.name, "agy executable not found on host")
 
+        if conversation_id:
+            conv_db = (
+                Path.home()
+                / ".gemini"
+                / "antigravity-cli"
+                / "conversations"
+                / f"{conversation_id}.db"
+            )
+            conv_brain = (
+                Path.home() / ".gemini" / "antigravity-cli" / "brain" / conversation_id
+            )
+            if not conv_db.exists() and not conv_brain.exists():
+                raise ConversationNotFoundError(conversation_id)
+
+        # Enforce pure conversational mode so the agent does not attempt
+        # to execute shell commands or scan local filesystem transcripts
+        chat_instruction = (
+            "Instrucción de sistema: Eres un asistente conversacional de chat. "
+            "Responde directamente con texto al usuario en lenguaje natural. "
+            "No uses herramientas, no ejecutes comandos y no leas archivos o transcripciones del sistema. "
+            "Limítate única y estrictamente al contexto explícito de esta conversación específica."
+        )
+
+        effective_prompt = (
+            f"[{chat_instruction}]\n\n{prompt}" if not conversation_id else prompt
+        )
+
         cmd = [
             exe,
             "-p",
-            prompt,
+            effective_prompt,
             "--output-format",
             "json",
             "--disable-slash-commands",

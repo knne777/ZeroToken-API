@@ -20,6 +20,16 @@ class ProviderNotFoundError(ZeroTokenException):
         )
 
 
+class ConversationNotFoundError(ZeroTokenException):
+    """Requested conversation ID does not exist."""
+
+    def __init__(self, conversation_id: str):
+        super().__init__(
+            f"Conversation '{conversation_id}' was not found. To start a new conversation, omit 'conversation_id' or set it to null.",
+            status_code=404,
+        )
+
+
 class ProviderUnavailableError(ZeroTokenException):
     """Requested provider CLI is not installed or not authenticated."""
 

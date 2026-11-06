@@ -86,3 +86,18 @@ def test_chat_mocked_success():
         assert data["conversation_id"] == "conv-abc-123"
         assert data["response"] == "Respuesta exitosa de prueba"
         assert data["usage"]["total_tokens"] == 150
+
+
+def test_chat_nonexistent_conversation():
+    res = client.post(
+        "/api/v1/chat",
+        json={
+            "message": "Hola",
+            "provider": "agy",
+            "conversation_id": "00000000-0000-0000-0000-000000000000",
+        },
+    )
+    assert res.status_code == 404
+    data = res.json()
+    assert data["error"] == "ConversationNotFoundError"
+    assert "not found" in data["message"]
