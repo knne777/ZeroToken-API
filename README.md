@@ -115,6 +115,29 @@ flowchart TD
    * **Swagger UI:** `http://localhost:8000/docs`
    * **ReDoc:** `http://localhost:8000/redoc`
 
+### Opción B: Despliegue con Docker y Docker Compose 🐳
+
+Puedes levantar la plataforma completa (FastAPI + React Dashboard compilado + Codex CLI) en un solo comando:
+
+```bash
+docker compose up -d
+```
+
+* **Persistencia total:** El archivo `docker-compose.yml` mapea `./data` para tu base de datos SQLite y `~/.codex`, `~/.gemini`, `~/.claude` para que tus suscripciones sigan activas tras reiniciar.
+* **Credenciales maestras del Dashboard:**
+  * **Usuario:** `admin` (o define `ZEROTOKEN_ADMIN_USER`)
+  * **Contraseña:** `zerotoken2026` (o define `ZEROTOKEN_ADMIN_PASSWORD`)
+
+---
+
+## 🔐 Seguridad y Acceso al Dashboard
+
+El acceso a **ZeroToken Studio** (`http://localhost:8000/studio`) está protegido por autenticación administrativa con contraseñas cifradas mediante **PBKDF2-HMAC-SHA256**:
+
+* **Credenciales iniciales:** `admin` / `zerotoken2026`.
+* **Cambio de Contraseña:** Desde la interfaz en la pestaña **"Ajustes de Seguridad"** (Sidebar) ingresando tu contraseña actual y la nueva.
+* **Sesiones Seguras:** Generación de tokens JWT firmados con expiración de 7 días.
+
 ---
 
 ## 💬 Formas de Uso

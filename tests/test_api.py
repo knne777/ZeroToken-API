@@ -220,3 +220,65 @@ def test_analytics_overview():
     assert "total_requests" in data
     assert "total_savings_usd" in data
     assert "total_tokens" in data
+
+
+def test_admin_auth_flow():
+    # 1. Login with bad password -> 401
+    bad_res = client.post(
+        "/api/v1/admin/login",
+        json={"username": "admin", "password": "wrong_password_123"},
+    )
+    assert bad_res.status_code == 401
+
+    # 2. Login with valid default password -> 200 + token
+    login_res = client.post(
+        "/api/v1/admin/login",
+        json={"username": "admin", "password": "zerotoken2026"},
+    )
+    assert login_res.status_code == 200
+    token = login_res.json()["access_token"]
+    assert token
+
+    # 3. Access protected /me endpoint
+    me_res = client.get(
+        "/api/v1/admin/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert me_res.status_code == 200
+    assert me_res.json()["username"] == "admin"
+
+    # 4. Change password
+    change_res = client.post(
+        "/api/v1/admin/change-password",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "current_password": "zerotoken2026",
+            "new_password": "UpdatedPassword2026!",
+        },
+    )
+    assert change_res.status_code == 200
+    new_token = change_res.json()["access_token"]
+
+    # 5. Verify old password fails
+    old_res = client.post(
+        "/api/v1/admin/login",
+        json={"username": "admin", "password": "zerotoken2026"},
+    )
+    assert old_res.status_code == 401
+
+    # 6. Verify new password succeeds
+    success_res = client.post(
+        "/api/v1/admin/login",
+        json={"username": "admin", "password": "UpdatedPassword2026!"},
+    )
+    assert success_res.status_code == 200
+
+    # 7. Restore back to default for test cleanliness
+    client.post(
+        "/api/v1/admin/change-password",
+        headers={"Authorization": f"Bearer {new_token}"},
+        json={
+            "current_password": "UpdatedPassword2026!",
+            "new_password": "zerotoken2026",
+        },
+    )

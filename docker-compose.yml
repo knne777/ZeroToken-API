@@ -1,0 +1,22 @@
+services:
+  zerotoken:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zerotoken-platform
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ZEROTOKEN_ADMIN_USER=admin
+      - ZEROTOKEN_ADMIN_PASSWORD=zerotoken2026
+      - ZEROTOKEN_JWT_SECRET=super_secret_jwt_key_change_me
+    volumes:
+      # Persist SQLite database, virtual API keys, and telemetry
+      - ./data:/app/data
+      # Mount host CLI authentication directories to preserve logins
+      - ~/.codex:/root/.codex
+      - ~/.gemini:/root/.gemini
+      - ~/.claude:/root/.claude
+      # Optional: mount host agy binary if present
+      - ~/.local/bin/agy:/usr/local/bin/agy:ro

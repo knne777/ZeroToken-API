@@ -65,6 +65,36 @@ def init_db():
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """)
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS admin_users (
+                    id TEXT PRIMARY KEY,
+                    username TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    salt TEXT NOT NULL,
+                    must_change_password INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # Check if default admin exists; if not, create it
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) FROM admin_users")
+            count = cur.fetchone()[0]
+            if count == 0:
+                from app.auth.admin import hash_password
+                import uuid
+                default_user = os.environ.get("ZEROTOKEN_ADMIN_USER", "admin")
+                default_pass = os.environ.get("ZEROTOKEN_ADMIN_PASSWORD", "zerotoken2026")
+                pw_hash, salt = hash_password(default_pass)
+                conn.execute(
+                    """
+                    INSERT INTO admin_users (id, username, password_hash, salt, must_change_password)
+                    VALUES (?, ?, ?, ?, 1)
+                    """,
+                    (str(uuid.uuid4()), default_user, pw_hash, salt),
+                )
     finally:
         conn.close()
 

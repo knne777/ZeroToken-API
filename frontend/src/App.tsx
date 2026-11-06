@@ -1,25 +1,40 @@
 import React, { useState, useEffect } from "react";
-import { LayoutDashboard, Key, Sparkles, Activity, ShieldCheck, ChevronRight } from "lucide-react";
+import { LayoutDashboard, Key, Sparkles, Activity, ShieldCheck, ChevronRight, Settings } from "lucide-react";
 import { Header } from "./components/Header";
 import { ProvidersHub } from "./components/ProvidersHub";
 import { KeysManager } from "./components/KeysManager";
 import { Playground } from "./components/Playground";
 import { TelemetryLogs } from "./components/TelemetryLogs";
 import { AuthModal } from "./components/AuthModal";
+import { LoginScreen } from "./components/LoginScreen";
+import { SettingsView } from "./components/SettingsView";
 import { AuthStatusResponse, ApiKeyItem, AnalyticsOverview, RequestLogItem } from "./types";
 
 export const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "keys" | "playground" | "logs">("dashboard");
+  const [adminToken, setAdminToken] = useState<string | null>(() => localStorage.getItem("ztk_admin_token"));
+  const [adminUser, setAdminUser] = useState<string>(() => localStorage.getItem("ztk_admin_user") || "admin");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "keys" | "playground" | "logs" | "settings">("dashboard");
   const [authStatus, setAuthStatus] = useState<AuthStatusResponse | null>(null);
   const [keys, setKeys] = useState<ApiKeyItem[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsOverview | null>(null);
   const [logs, setLogs] = useState<RequestLogItem[]>([]);
   const [authModalProvider, setAuthModalProvider] = useState<string | null>(null);
 
+  const getHeaders = () => {
+    return adminToken ? { Authorization: `Bearer ${adminToken}` } : {};
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("ztk_admin_token");
+    localStorage.removeItem("ztk_admin_user");
+    setAdminToken(null);
+  };
+
   const fetchAuthStatus = async () => {
     try {
-      const res = await fetch("/api/v1/auth/status");
+      const res = await fetch("/api/v1/auth/status", { headers: getHeaders() });
       if (res.ok) setAuthStatus(await res.json());
+      else if (res.status === 401) handleLogout();
     } catch (err) {
       console.error("Failed to fetch auth status", err);
     }
@@ -27,8 +42,9 @@ export const App: React.FC = () => {
 
   const fetchKeys = async () => {
     try {
-      const res = await fetch("/api/v1/keys");
+      const res = await fetch("/api/v1/keys", { headers: getHeaders() });
       if (res.ok) setKeys(await res.json());
+      else if (res.status === 401) handleLogout();
     } catch (err) {
       console.error("Failed to fetch keys", err);
     }
@@ -36,8 +52,9 @@ export const App: React.FC = () => {
 
   const fetchAnalytics = async () => {
     try {
-      const res = await fetch("/api/v1/analytics/overview");
+      const res = await fetch("/api/v1/analytics/overview", { headers: getHeaders() });
       if (res.ok) setAnalytics(await res.json());
+      else if (res.status === 401) handleLogout();
     } catch (err) {
       console.error("Failed to fetch analytics", err);
     }
@@ -45,14 +62,16 @@ export const App: React.FC = () => {
 
   const fetchLogs = async () => {
     try {
-      const res = await fetch("/api/v1/analytics/logs?limit=50");
+      const res = await fetch("/api/v1/analytics/logs?limit=50", { headers: getHeaders() });
       if (res.ok) setLogs(await res.json());
+      else if (res.status === 401) handleLogout();
     } catch (err) {
       console.error("Failed to fetch logs", err);
     }
   };
 
   const refreshAll = () => {
+    if (!adminToken) return;
     fetchAuthStatus();
     fetchKeys();
     fetchAnalytics();
@@ -60,16 +79,31 @@ export const App: React.FC = () => {
   };
 
   useEffect(() => {
-    refreshAll();
-    const interval = setInterval(refreshAll, 10000);
-    return () => clearInterval(interval);
-  }, []);
+    if (adminToken) {
+      refreshAll();
+      const interval = setInterval(refreshAll, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [adminToken]);
+
+  // If not authenticated, render LoginScreen
+  if (!adminToken) {
+    return (
+      <LoginScreen
+        onLoginSuccess={(token, user) => {
+          setAdminToken(token);
+          setAdminUser(user);
+        }}
+      />
+    );
+  }
 
   const navItems = [
     { id: "dashboard", label: "Dashboard & Conexiones", icon: LayoutDashboard },
     { id: "keys", label: "Virtual API Keys", icon: Key },
     { id: "playground", label: "Playground", icon: Sparkles },
     { id: "logs", label: "Telemetría & Auditoría", icon: Activity },
+    { id: "settings", label: "Ajustes de Seguridad", icon: Settings },
   ];
 
   return (
@@ -139,6 +173,10 @@ export const App: React.FC = () => {
 
           {activeTab === "logs" && (
             <TelemetryLogs logs={logs} onRefresh={fetchLogs} />
+          )}
+
+          {activeTab === "settings" && (
+            <SettingsView username={adminUser} onLogout={handleLogout} />
           )}
         </main>
       </div>

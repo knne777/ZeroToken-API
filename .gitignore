@@ -6,5 +6,6 @@ __pycache__/
 .venv/
 data/*.db
 data/*.sqlite
+data/.jwt_secret
 frontend/node_modules/
 frontend/.vite/

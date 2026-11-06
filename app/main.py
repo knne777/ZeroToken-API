@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.analytics.routes import router as analytics_router
+from app.auth.admin_routes import router as admin_router
 from app.auth.routes import router as auth_router
 from app.config import settings
 from app.core.exceptions import ZeroTokenException
@@ -60,6 +61,7 @@ async def zerotoken_exception_handler(request: Request, exc: ZeroTokenException)
 
 
 # Mount routers
+app.include_router(admin_router)
 app.include_router(auth_router)
 app.include_router(keys_router)
 app.include_router(openai_router)
